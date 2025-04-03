@@ -11,16 +11,10 @@
 {% endblock extrahead %}
 {% block breadcrumbs %}
   <div class="breadcrumbs">
-    <li>
       <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
-    </li>
-    <li>
-      <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
-    </li>
-    <li>
-      <a href="{% url list_url %}">{{ opts.verbose_name_plural|capfirst }}</a>
-    </li>
-    {% trans 'Select Bunk' %}
+    › <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+    › <a href="{% url list_url %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    › {% trans 'Select Bunk' %}
   </div>
 {% endblock breadcrumbs %}
 {% block content %}

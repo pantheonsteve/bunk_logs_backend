@@ -86,3 +86,16 @@ class BunkLogAdminForm(forms.ModelForm):
                 required=self.fields["bunk_assignment"].required,
                 widget=self.fields["bunk_assignment"].widget,
             )
+
+
+class BunkLogCsvImportForm(forms.Form):
+    csv_file = forms.FileField(
+        label="CSV file",
+        help_text="A CSV file containing bunklog data.",
+    )
+    dry_run = forms.BooleanField(
+        label="Dry run",
+        required=False,
+        initial=True,
+        help_text="Perform a dry run without saving changes.",
+    )

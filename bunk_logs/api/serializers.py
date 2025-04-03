@@ -7,6 +7,7 @@ from bunks.models import Bunk
 from bunks.models import Cabin
 from bunks.models import Session
 from bunks.models import Unit
+from bunklogs.models import BunkLog
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -57,3 +58,9 @@ class CamperBunkAssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = CamperBunkAssignment
         fields = ["bunk", "camper"]
+
+
+class BunkLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BunkLog
+        fields = '__all__'

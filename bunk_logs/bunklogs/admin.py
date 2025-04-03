@@ -1,13 +1,19 @@
 from campers.models import CamperBunkAssignment
+import tempfile
+from pathlib import Path
+
 from django.contrib import admin
+from django.contrib import messages
 from django.shortcuts import redirect
 from django.shortcuts import render
-from django.urls import path
+from django.urls import path, reverse
 from django.utils.translation import gettext_lazy as _
 
 from .forms import BunkLogAdminForm
 from .forms import BunkSelectionForm
+from .forms import BunkLogCsvImportForm
 from .models import BunkLog
+from .services.imports import import_bunk_logs_from_csv, generate_sample_csv
 
 
 @admin.register(BunkLog)
@@ -58,6 +64,7 @@ class BunkLogAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.select_bunk_view),
                 name="bunklog_select_bunk",
             ),
+            path("import-bunklogs/", self.import_bunklogs, name="bunklog_import_csv"),
         ]
         return custom_urls + urls
 
@@ -67,7 +74,8 @@ class BunkLogAdmin(admin.ModelAdmin):
             form = BunkSelectionForm(request.POST)
             if form.is_valid():
                 bunk_id = form.cleaned_data["bunk"].id
-                return redirect(f"../add/?bunk={bunk_id}")
+                add_url = reverse("admin:bunklogs_bunklog_add")  # Assuming 'bunklogs_bunklog_add' is the correct name
+                return redirect(f"{add_url}?bunk={bunk_id}")
         else:
             form = BunkSelectionForm()
 
@@ -75,8 +83,76 @@ class BunkLogAdmin(admin.ModelAdmin):
             "form": form,
             "title": _("Select Bunk"),
             "opts": self.opts,  # Changed from self.model._meta to self.opts
+            'list_url': 'admin:bunklogs_bunklog_changelist',
         }
         return render(request, "admin/bunklogs/select_bunk.html", context)
+
+    def import_bunklogs(self, request):
+        if request.method == "POST":
+            form = BunkLogCsvImportForm(request.POST, request.FILES)
+            if form.is_valid():
+                csv_file = form.cleaned_data["csv_file"]
+                dry_run = form.cleaned_data["dry_run"]
+
+                # Save the uploaded file to a secure temporary file
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    temp_path = Path(temp_file.name)
+                    for chunk in csv_file.chunks():
+                        temp_file.write(chunk)
+
+                # Process the CSV file
+                try:
+                    # Get the current user as default counselor if they're staff
+                    default_counselor_email = request.user.email if request.user.is_staff else None
+                
+                    result = import_bunk_logs_from_csv(
+                        temp_path, 
+                        dry_run=dry_run,
+                        default_counselor_email=default_counselor_email
+                    )
+                
+                    if dry_run:
+                        messages.info(
+                            request,
+                            "Dry run completed. "
+                            f"{result['success_count']} bunklogs would be imported.",
+                        )
+                    else:
+                        messages.success(
+                            request,
+                            f"Successfully imported {result['success_count']} bunklogs.",
+                        )
+
+                    if result["error_count"] > 0:
+                        for error in result["errors"]:
+                            messages.error(
+                                request,
+                                f"Error in row {error['row']}: {error['error']}",
+                            )
+                except Exception as e:
+                    messages.error(request, f"Import failed: {str(e)}")
+                finally:
+                    # Clean up the temporary file
+                    temp_path.unlink(missing_ok=True)
+
+                    return redirect("admin:bunklogs_bunklog_changelist")
+        else:
+            form = BunkLogCsvImportForm()
+
+        context = {
+            "form": form,
+            "title": "Import BunkLogs from CSV",
+            "opts": self.model._meta,
+            "app_label": self.model._meta.app_label,
+            "model_name": self.model._meta.model_name,
+            "sample_csv": generate_sample_csv(),  # Add sample CSV content
+        }
+        return render(request, "admin/csv_form.html", context)
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["import_bunklogs"] = reverse("admin:bunklog_import_csv")
+        return super().changelist_view(request, extra_context=extra_context)
 
     def add_view(self, request, form_url="", extra_context=None):
         """Override add view to check for bunk parameter and filter assignments."""

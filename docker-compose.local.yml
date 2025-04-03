@@ -21,6 +21,8 @@ services:
     ports:
       - '8000:8000'
     command: /start
+    environment:
+      - USE_DOCKER=yes
 
   postgres:
     build:
