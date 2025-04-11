@@ -15,6 +15,7 @@ from .serializers import BunkSerializer
 from .serializers import CamperBunkAssignmentSerializer
 from .serializers import CamperSerializer
 from .serializers import UnitSerializer
+from .serializers import CamperBunkLogSerializer
 
 
 class BunkViewSet(viewsets.ModelViewSet):
@@ -157,18 +158,84 @@ class BunkLogsInfoByDateViewSet(APIView):
 
 
 class UnitViewSet(viewsets.ModelViewSet):
+    renderer_classes = [JSONRenderer]
+    permission_classes = [AllowAny]
     queryset = Unit.objects.all()
     serializer_class = UnitSerializer
 
 
 class CamperViewSet(viewsets.ModelViewSet):
+    renderer_classes = [JSONRenderer]
+    permission_classes = [AllowAny]
     queryset = Camper.objects.all()
     serializer_class = CamperSerializer
 
 
 class CamperBunkAssignmentViewSet(viewsets.ModelViewSet):
+    renderer_classes = [JSONRenderer]
+    permission_classes = [AllowAny]
     queryset = CamperBunkAssignment.objects.all()
     serializer_class = CamperBunkAssignmentSerializer
 
 
+class BunkLogViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for creating, reading, updating and deleting BunkLogs.
+    
+    POST requests to this endpoint should include:
+    - date: YYYY-MM-DD format
+    - bunk_assignment: ID of the CamperBunkAssignment
+    - counselor: ID of the counselor User
+    - not_on_camp: Boolean indicating if camper is not on camp
+    - social_score: Integer 1-5 (optional)
+    - behavior_score: Integer 1-5 (optional)
+    - participation_score: Integer 1-5 (optional)
+    - request_camper_care_help: Boolean
+    - request_unit_head_help: Boolean
+    - description: Text description
+    """
+    #renderer_classes = [JSONRenderer]
+    permission_classes = [AllowAny]  # Consider using proper authentication here
+    queryset = BunkLog.objects.all()
+    serializer_class = BunkLogSerializer
+
+
+class CamperBunkLogViewSet(APIView):
+    renderer_classes = [JSONRenderer]
+    permission_classes = [AllowAny]
+    queryset = BunkLog.objects.all()
+    serializer_class = BunkLogSerializer
+
+    def get(self, request, camper_id):
+        try:
+            # Get the camper
+            camper = Camper.objects.get(id=camper_id)
+            serialized_camper = CamperSerializer(camper).data
+            # Get the bunk assignments for this camper
+            assignments = CamperBunkAssignment.objects.filter(camper=camper)
+            # Get the bunk logs for these assignments
+            bunk_logs = BunkLog.objects.filter(
+                bunk_assignment__in=assignments
+            ).select_related('bunk_assignment__bunk')
+            # Serialize the bunk logs
+            serialized_bunk_logs = CamperBunkLogSerializer(bunk_logs, many=True).data
+            # Prepare the response data
+            response_data = {
+                "camper": serialized_camper,
+                "bunk_logs": serialized_bunk_logs,
+                "bunk_assignments": [
+                    {
+                        "id": str(assignment.id),
+                        "bunk_name": assignment.bunk.name,
+                        "bunk_id": str(assignment.bunk.id),
+                        "is_active": assignment.is_active,
+                        "start_date": assignment.start_date,
+                        "end_date": assignment.end_date,
+                    }
+                    for assignment in assignments
+                ],
+            }
+            return Response(response_data)
+        except Camper.DoesNotExist:
+            return Response({"error": f"Camper with ID {camper_id} not found"}, status=404)
 # Create your views here.

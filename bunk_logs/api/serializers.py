@@ -57,10 +57,75 @@ class CamperBunkAssignmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CamperBunkAssignment
-        fields = ["bunk", "camper"]
+        fields = ["id","bunk", "camper"]
 
 
 class BunkLogSerializer(serializers.ModelSerializer):
+    """
+    Serializer for BunkLog model.
+    For POST requests, you need to provide:
+    - date
+    - bunk_assignment (id)
+    - counselor (id)
+    - other fields as needed
+    """
     class Meta:
         model = BunkLog
         fields = '__all__'
+        
+    def validate(self, data):
+        """
+        Validate the BunkLog data.
+        """
+        # Validate scores are between 1 and 5 if provided
+        for score_field in ['social_score', 'behavior_score', 'participation_score']:
+            if score_field in data and data[score_field] is not None:
+                score = data[score_field]
+                if score < 1 or score > 5:
+                    raise serializers.ValidationError({score_field: "Score must be between 1 and 5"})
+        
+        # Check for duplicate bunk logs (same camper on same date)
+        if self.instance is None:  # Only for creation, not updates
+            existing = BunkLog.objects.filter(
+                bunk_assignment=data['bunk_assignment'],
+                date=data['date']
+            ).exists()
+            
+            if existing:
+                raise serializers.ValidationError(
+                    "A bunk log already exists for this camper on this date."
+                )
+                
+        return data
+    
+class CamperBunkLogSerializer(serializers.ModelSerializer):
+    """
+    Serializer for bunklogs related to a specific camper.
+    """
+    camper = serializers.SerializerMethodField()
+    bunk = BunkSerializer(read_only=True)
+    bunk_assignment = CamperBunkAssignmentSerializer(read_only=True)
+
+    class Meta:
+        model = BunkLog
+        fields = [
+            "date",
+            "bunk",
+            "counselor",
+            "social_score",
+            "behavior_score",
+            "participation_score",
+            "request_camper_care_help",
+            "request_unit_head_help",
+            "description",
+            "camper",
+            "bunk_assignment",
+            "id"
+        ]
+    
+    def get_camper(self, obj):
+        return CamperSerializer(obj.bunk_assignment.camper).data
+    
+    def get_bunk(self, obj):
+        return BunkSerializer(obj.bunk_assignment.bunk).data
+
