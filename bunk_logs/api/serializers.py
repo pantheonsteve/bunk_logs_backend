@@ -112,6 +112,7 @@ class CamperBunkLogSerializer(serializers.ModelSerializer):
             "date",
             "bunk",
             "counselor",
+            "not_on_camp",
             "social_score",
             "behavior_score",
             "participation_score",
