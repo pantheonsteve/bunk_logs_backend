@@ -57,6 +57,7 @@ class CamperBunkAssignment(models.Model):
 
     # Add error message constant
     BUNK_LOGS_DELETE_ERROR = "Cannot delete bunk assignment with associated bunk logs."
+    OVERLAPPING_ASSIGNMENT_ERROR = "Camper already has an active bunk assignment during this period."
 
     camper = models.ForeignKey(
         Camper,
@@ -75,10 +76,44 @@ class CamperBunkAssignment(models.Model):
     class Meta:
         verbose_name = _("camper bunk assignment")
         verbose_name_plural = _("camper bunk assignments")
-        unique_together = ("camper", "bunk")
+        # Removed unique_together constraint to allow multiple assignments with different dates
 
     def __str__(self):
         return f"{self.camper} in {self.bunk.name}"
+
+    def clean(self):
+        # Validate that dates are logical
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValidationError("End date cannot be before start date.")
+            
+        # Check for overlapping assignments
+        if self.is_active or (self.start_date and self.end_date):
+            overlapping_assignments = CamperBunkAssignment.objects.filter(
+                camper=self.camper,
+                is_active=True,
+            )
+            
+            # Exclude current instance if it exists (for updates)
+            if self.pk:
+                overlapping_assignments = overlapping_assignments.exclude(pk=self.pk)
+                
+            # Check date-based overlaps if dates are provided
+            if self.start_date and self.end_date:
+                date_overlaps = CamperBunkAssignment.objects.filter(
+                    camper=self.camper,
+                    start_date__lte=self.end_date,
+                    end_date__gte=self.start_date
+                )
+                
+                if self.pk:
+                    date_overlaps = date_overlaps.exclude(pk=self.pk)
+                    
+                if date_overlaps.exists():
+                    raise ValidationError(self.OVERLAPPING_ASSIGNMENT_ERROR)
+                    
+            # If we're setting this as active, ensure no other active assignments exist
+            if self.is_active and overlapping_assignments.exists():
+                raise ValidationError("Camper already has an active bunk assignment.")
 
     def save(self, *args, **kwargs):
         # Automatically set start and end dates based on the session of the bunk
@@ -86,10 +121,15 @@ class CamperBunkAssignment(models.Model):
             self.start_date = self.bunk.session.start_date
         if not self.end_date and self.bunk and self.bunk.session:
             self.end_date = self.bunk.session.end_date
+            
+        # Run validation
+        self.clean()
+        
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
         # Check for associated bunk logs before deletion
-        if self.bunk.bunk_logs.exists():
+        from bunklogs.models import BunkLog  # Changed to match the import used in admin.py
+        if BunkLog.objects.filter(bunk_assignment=self).exists():
             raise ValidationError(self.BUNK_LOGS_DELETE_ERROR)
         super().delete(*args, **kwargs)

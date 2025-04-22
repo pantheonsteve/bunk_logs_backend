@@ -39,9 +39,8 @@ class BunkLogAdmin(admin.ModelAdmin):
     search_fields = (
         "bunk_assignment__camper__first_name",
         "bunk_assignment__camper__last_name",
-        "date",
-        "counselor",
-        "bunk_assignment__bunk__name",
+        "counselor__email",
+        "description",
     )
 
     @admin.display(
@@ -64,7 +63,7 @@ class BunkLogAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.select_bunk_view),
                 name="bunklog_select_bunk",
             ),
-            path("import-bunklogs/", self.import_bunklogs, name="bunklog_import_csv"),
+            path("import-bunklogs/", self.import_bunklogs, name="bunklogs_bunklog_import_csv"),
         ]
         return custom_urls + urls
 
@@ -151,7 +150,7 @@ class BunkLogAdmin(admin.ModelAdmin):
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
-        extra_context["import_bunklogs"] = reverse("admin:bunklog_import_csv")
+        extra_context["import_bunklogs"] = reverse("admin:bunklogs_bunklog_import_csv")
         return super().changelist_view(request, extra_context=extra_context)
 
     def add_view(self, request, form_url="", extra_context=None):

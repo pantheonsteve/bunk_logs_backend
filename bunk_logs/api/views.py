@@ -140,6 +140,14 @@ class BunkLogsInfoByDateViewSet(APIView):
             # Get counselors for this bunk
             # Implement this based on your data model
             counselors_data = []  # You'll need to implement this part
+
+            for counselor in bunk.counselors.all():
+                counselors_data.append({
+                    "id": str(counselor.id),
+                    "first_name": counselor.first_name,
+                    "last_name": counselor.last_name,
+                    "email": counselor.email,
+                })
             
             response_data = {
                 "date": date,
