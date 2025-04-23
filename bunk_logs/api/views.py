@@ -4,18 +4,27 @@ from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.renderers import JSONRenderer
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 
 from bunks.models import Bunk
 from bunks.models import Unit
 from bunklogs.models import BunkLog
-from .serializers import BunkLogSerializer
 
+#from .permissions import BunkAccessPermission
+from .permissions import IsCounselorForBunk
+from .permissions import DebugPermission
+
+from .serializers import BunkLogSerializer
 from .serializers import BunkSerializer
 from .serializers import CamperBunkAssignmentSerializer
 from .serializers import CamperSerializer
 from .serializers import UnitSerializer
 from .serializers import CamperBunkLogSerializer
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import api_view, permission_classes
 
 
 class BunkViewSet(viewsets.ModelViewSet):
@@ -95,9 +104,13 @@ class BunkLogsInfoByDateViewSet(APIView):
             ],
         },
     """
+    
     renderer_classes = [JSONRenderer]
-    permission_classes = [AllowAny]
-
+    permission_classes = [DebugPermission]
+    # For debugging:
+    # permission_classes = [IsAuthenticated, DebugPermission]
+    
+    # Make sure your method signature matches URL parameters exactly:
     def get(self, request, bunk_id, date):
         try:
             # Get the bunk
@@ -187,25 +200,43 @@ class CamperBunkAssignmentViewSet(viewsets.ModelViewSet):
 
 
 class BunkLogViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for creating, reading, updating and deleting BunkLogs.
-    
-    POST requests to this endpoint should include:
-    - date: YYYY-MM-DD format
-    - bunk_assignment: ID of the CamperBunkAssignment
-    - counselor: ID of the counselor User
-    - not_on_camp: Boolean indicating if camper is not on camp
-    - social_score: Integer 1-5 (optional)
-    - behavior_score: Integer 1-5 (optional)
-    - participation_score: Integer 1-5 (optional)
-    - request_camper_care_help: Boolean
-    - request_unit_head_help: Boolean
-    - description: Text description
-    """
-    #renderer_classes = [JSONRenderer]
-    permission_classes = [AllowAny]  # Consider using proper authentication here
+    permission_classes = [IsAuthenticated]
     queryset = BunkLog.objects.all()
     serializer_class = BunkLogSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Admin/staff can see all
+        if user.is_staff or user.role == 'Admin':
+            return BunkLog.objects.all()
+            
+        # Unit heads can see logs for bunks in their units
+        if user.role == 'Unit Head':
+            return BunkLog.objects.filter(
+                bunk_assignment__bunk__unit__in=user.managed_units.all()
+            )
+            
+        # Counselors can only see logs for their bunks
+        if user.role == 'Counselor':
+            return BunkLog.objects.filter(
+                bunk_assignment__bunk__in=user.assigned_bunks.all()
+            )
+            
+        # Default: see nothing
+        return BunkLog.objects.none()
+    
+    def perform_create(self, serializer):
+        # Verify the user is allowed to create a log for this bunk assignment
+        bunk_assignment = serializer.validated_data.get('bunk_assignment')
+        
+        if self.request.user.role == 'Counselor':
+            # Check if user is a counselor for this bunk
+            if not self.request.user.assigned_bunks.filter(id=bunk_assignment.bunk.id).exists():
+                raise PermissionDenied("You are not authorized to create logs for this bunk.")
+                
+        # Set the counselor automatically to the current user
+        serializer.save(counselor=self.request.user)
 
 
 class CamperBunkLogViewSet(APIView):
@@ -246,4 +277,53 @@ class CamperBunkLogViewSet(APIView):
             return Response(response_data)
         except Camper.DoesNotExist:
             return Response({"error": f"Camper with ID {camper_id} not found"}, status=404)
+        
+
+
+# Updated debug_user_bunks function
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def debug_user_bunks(request):
+    """Temporary debug endpoint to check user-bunk relationships"""
+    from bunks.models import Bunk
+    
+    user_data = {
+        "email": request.user.email,
+        "id": request.user.id,
+        "role": request.user.role,
+        "is_staff": request.user.is_staff,
+    }
+    
+    # Check direct assigned bunks - only get the id field
+    bunks_query = Bunk.objects.filter(counselors__id=request.user.id)
+    assigned_bunks = []
+    
+    for bunk in bunks_query:
+        assigned_bunks.append({
+            "id": bunk.id,
+            "name": str(bunk),  # Use the string representation, which should use the name property
+            "cabin": str(bunk.cabin) if bunk.cabin else None,
+            "session": str(bunk.session) if bunk.session else None
+        })
+    
+    user_data["assigned_bunks"] = assigned_bunks
+    
+    # Check specific bunk (the one causing the 403)
+    try:
+        bunk_30 = Bunk.objects.get(id=30)
+        user_data["bunk_30_exists"] = True
+        
+        counselors_data = []
+        for counselor in bunk_30.counselors.all():
+            counselors_data.append({
+                "id": counselor.id,
+                "email": counselor.email
+            })
+        
+        user_data["bunk_30_counselors"] = counselors_data
+        user_data["user_in_bunk_30"] = bunk_30.counselors.filter(id=request.user.id).exists()
+    except Bunk.DoesNotExist:
+        user_data["bunk_30_exists"] = False
+    
+    return JsonResponse(user_data)
 # Create your views here.

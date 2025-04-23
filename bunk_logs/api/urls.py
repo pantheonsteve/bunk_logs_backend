@@ -9,6 +9,7 @@ from .views import UnitViewSet
 from .views import BunkLogsInfoByDateViewSet
 from .views import BunkLogViewSet
 from .views import CamperBunkLogViewSet
+from .views import debug_user_bunks
 
 router = DefaultRouter()
 router.register(r"bunks", BunkViewSet)
@@ -22,5 +23,6 @@ router.register(r"bunklogs", BunkLogViewSet)
 urlpatterns = [
     path("", include(router.urls)),
     path("bunklogs/<str:bunk_id>/<str:date>/", BunkLogsInfoByDateViewSet.as_view(), name="bunk-logs-info"),
-    path("camper/<str:camper_id>/", CamperBunkLogViewSet.as_view(), name="camper-bunklogs")
+    path("camper/<str:camper_id>/", CamperBunkLogViewSet.as_view(), name="camper-bunklogs"),
+    path('debug/user-bunks/', debug_user_bunks, name='debug-user-bunks'),
 ]

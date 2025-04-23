@@ -266,6 +266,12 @@ LOGGING = {
             "formatter": "verbose",
         },
     },
+    'loggers': {
+        'bunk_logs.api.permissions': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
     "root": {"level": "INFO", "handlers": ["console"]},
 }
 
@@ -353,3 +359,4 @@ SPECTACULAR_SETTINGS = {
 FRONTEND_URL = "http://localhost:5173"  # Default for development
 LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/dashboard" 
 ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
+SPA_URL = "http://localhost:5173"
