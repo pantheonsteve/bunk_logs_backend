@@ -26,6 +26,12 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "is_active", "is_staff", "is_superuser"]
 
+class UserDetailsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'first_name', 'last_name']
+        read_only_fields = ['email']
+
 class UserCreateSerializer(serializers.ModelSerializer):
     """
     Serializer for creating User objects.

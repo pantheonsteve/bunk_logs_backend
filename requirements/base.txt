@@ -22,4 +22,6 @@ drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
 # For latest stable versions:
 dj-rest-auth  # https://dj-rest-auth.readthedocs.io/
 pyjwt
+djangorestframework-simplejwt
+dj-rest-auth[with_social]
 # ------------------------------------------------------------------------------

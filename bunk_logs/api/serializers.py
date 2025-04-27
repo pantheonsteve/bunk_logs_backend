@@ -10,12 +10,6 @@ from bunks.models import Unit
 from bunklogs.models import BunkLog
 
 
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ["first_name", "last_name", "role", "id"]
-
-
 class CabinSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cabin
@@ -34,11 +28,59 @@ class UnitSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+# Simple User serializer for nested relationships to avoid recursion
+class SimpleUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["first_name", "last_name", "role", "id", "email"]
+
+
+# Simple Bunk serializer for nested relationships to avoid recursion
+class SimpleBunkSerializer(serializers.ModelSerializer):
+    unit = UnitSerializer()
+    cabin = CabinSerializer()
+    session = SessionSerializer()
+    counselors = SimpleUserSerializer(many=True, read_only=True)  # Use SimpleUserSerializer here
+
+    class Meta:
+        model = Bunk
+        fields = ['counselors', 'session', 'unit', 'cabin']  # Exclude the field causing recursion
+
+
+class UserSerializer(serializers.ModelSerializer):
+    bunks = serializers.SerializerMethodField()
+    unit = serializers.SerializerMethodField()
+    unit_bunks = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = ["first_name", "last_name", "role", "id", "email", "profile_complete", 
+                  "is_active", "is_staff", "is_superuser", "date_joined", 
+                  "bunks", "unit", "unit_bunks"]
+    
+    def get_bunks(self, obj):
+        if obj.role == 'Counselor':
+            # Use SimpleBunkSerializer instead of BunkSerializer to avoid recursion
+            return SimpleBunkSerializer(Bunk.objects.filter(counselors=obj), many=True).data
+        return []
+    
+    def get_unit(self, obj):
+        if obj.role == 'Unit Head' and hasattr(obj, 'unit'):
+            return UnitSerializer(obj.unit).data
+        return None
+    
+    def get_unit_bunks(self, obj):
+        if obj.role == 'Unit Head' and hasattr(obj, 'unit'):
+            bunks = Bunk.objects.filter(unit=obj.unit)
+            return SimpleBunkSerializer(bunks, many=True).data
+        return []
+
+
 class BunkSerializer(serializers.ModelSerializer):
     unit = UnitSerializer()
     cabin = CabinSerializer()
     session = SessionSerializer()
-    counselors = UserSerializer(many=True, read_only=True)
+    counselors = SimpleUserSerializer(many=True, read_only=True)  # Use SimpleUserSerializer here
 
     class Meta:
         model = Bunk
@@ -52,7 +94,7 @@ class CamperSerializer(serializers.ModelSerializer):
 
 
 class CamperBunkAssignmentSerializer(serializers.ModelSerializer):
-    bunk = BunkSerializer()
+    bunk = SimpleBunkSerializer()  # Use SimpleBunkSerializer to avoid recursion
     camper = CamperSerializer()
 
     class Meta:
@@ -103,7 +145,7 @@ class CamperBunkLogSerializer(serializers.ModelSerializer):
     Serializer for bunklogs related to a specific camper.
     """
     camper = serializers.SerializerMethodField()
-    bunk = BunkSerializer(read_only=True)
+    bunk = SimpleBunkSerializer(read_only=True)  # Use SimpleBunkSerializer
     bunk_assignment = CamperBunkAssignmentSerializer(read_only=True)
 
     class Meta:
@@ -128,5 +170,5 @@ class CamperBunkLogSerializer(serializers.ModelSerializer):
         return CamperSerializer(obj.bunk_assignment.camper).data
     
     def get_bunk(self, obj):
-        return BunkSerializer(obj.bunk_assignment.bunk).data
+        return SimpleBunkSerializer(obj.bunk_assignment.bunk).data  # Use SimpleBunkSerializer
 

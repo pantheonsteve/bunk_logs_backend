@@ -1,3 +1,5 @@
+# File: config/auth_api.py
+
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth import get_user_model
@@ -23,10 +25,11 @@ def get_auth_status(request):
             'user': {
                 'id': request.user.id,
                 'email': request.user.email,
-                'username': getattr(request.user, 'username', request.user.email),
-                'name': getattr(request.user, 'name', ''),
+                'firstName': request.user.first_name,
+                'lastName': request.user.last_name,
+                'name': request.user.name,
                 'role': request.user.role,
-                # Add other user fields you want to expose
+                'profileComplete': request.user.profile_complete,
             }
         }
         
@@ -46,6 +49,11 @@ def get_auth_status(request):
                 })
                 
             response_data['user']['bunks'] = formatted_bunks
+            
+        # For Unit Heads, include their managed units
+        elif request.user.role == 'Unit Head':
+            units = list(request.user.managed_units.all().values('id', 'name'))
+            response_data['user']['units'] = units
             
         return JsonResponse(response_data)
     else:

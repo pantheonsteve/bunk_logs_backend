@@ -42,11 +42,15 @@ class UserSignupForm(SignupForm):
 
 class UserSocialSignupForm(SocialSignupForm):
     """
-    Renders the form when user has signed up using social accounts.
-    Default fields will be added automatically.
-    See UserSignupForm otherwise.
+    Form for social signup in case auto-signup is disabled.
     """
-
-    class Meta:
-        model = User
-        fields = ("email",)
+    
+    def save(self, request):
+        # Initialize the user
+        user = super().save(request)
+        
+        # Set default role for social signups
+        user.role = 'Counselor'
+        user.save()
+        
+        return user

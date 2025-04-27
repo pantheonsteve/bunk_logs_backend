@@ -1,3 +1,5 @@
+# File: config/views.py
+
 from django.conf import settings
 from django.shortcuts import redirect
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
@@ -13,14 +15,14 @@ logger = logging.getLogger(__name__)
 
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
-    callback_url = settings.FRONTEND_URL + "/dashboard"  # This can be anything, used for validation
+    callback_url = settings.FRONTEND_URL + "/auth/google/callback"  # This needs to match your Google OAuth redirect URI
     client_class = OAuth2Client
 
 def google_login_redirect(request):
     """Handle the redirect from Google OAuth callback"""
     try:
         # Redirect to frontend dashboard
-        frontend_url = settings.FRONTEND_URL + "/dashboard"
+        frontend_url = settings.FRONTEND_URL + "/auth/success"
         return redirect(frontend_url)
     except Exception as e:
         logger.error(f"Error in google_login_redirect: {str(e)}")
@@ -42,8 +44,10 @@ def CustomGoogleCallbackView(request):
         token.app = app
         login = adapter.complete_login(request, app, token)
         
-        # Add any custom user setup logic here
-        
+        # Set profile_complete to True for new users
+        if not login.user.pk:  # New user being created
+            login.user.profile_complete = True
+            
         # Complete the social login process
         return complete_social_login(request, login)
     except Exception as e:

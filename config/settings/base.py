@@ -2,6 +2,7 @@
 """Base settings to build other settings files upon."""
 
 from pathlib import Path
+from datetime import timedelta
 
 import environ
 
@@ -81,6 +82,7 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
+    'rest_framework_simplejwt',
     'dj_rest_auth',
     'dj_rest_auth.registration',
     "drf_spectacular",
@@ -114,7 +116,7 @@ AUTHENTICATION_BACKENDS = [
 AUTH_USER_MODEL = "users.User"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-redirect-url
 #LOGIN_REDIRECT_URL = "users:redirect"
-LOGIN_REDIRECT_URL = 'http://localhost:5173/dashboard'
+LOGIN_REDIRECT_URL = 'http://localhost:5173/auth/callback'
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-url
 LOGIN_URL = "account_login"
 
@@ -281,27 +283,39 @@ REDIS_SSL = REDIS_URL.startswith("rediss://")
 
 # django-allauth
 # ------------------------------------------------------------------------------
+# Social authentication settings - very important!
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+
 ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_LOGIN_METHODS = {"email"}
-# https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_EMAIL_REQUIRED = True
-# https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_USERNAME_REQUIRED = False
-# https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-# https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_EMAIL_VERIFICATION = "optional"
+
+# Social account settings
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
+SOCIALACCOUNT_EMAIL_REQUIRED = False
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_STORE_TOKENS = True
+SOCIALACCOUNT_ADAPTER = "bunk_logs.users.adapters.SocialAccountAdapter"
+SOCIALACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSocialSignupForm"}
+
+
+
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/account/forms.html
 ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
-# https://docs.allauth.org/en/latest/socialaccount/configuration.html
-SOCIALACCOUNT_ADAPTER = "bunk_logs.users.adapters.SocialAccountAdapter"
-# https://docs.allauth.org/en/latest/socialaccount/configuration.html
-SOCIALACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSocialSignupForm"}
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
-ACCOUNT_UNIQUE_EMAIL = True
+
+
+
+SOCIALACCOUNT_QUERY_EMAIL = True
+
+ACCOUNT_LOGOUT_REDIRECT_URL = 'http://localhost:5173/signin'
 
 # django-rest-framework
 # -------------------------------------------------------------------------------
@@ -320,7 +334,7 @@ CORS_URLS_REGEX = r"^/api/.*$"
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "https://bunklogs.net",
 ]
 # If needed for development purposes, you can also enable specific headers and methods
 CORS_ALLOW_HEADERS = [
@@ -343,6 +357,23 @@ CORS_ALLOW_METHODS = [
     "PUT",
 ]
 
+# Frontend URLs - These will be overridden in environment-specific settings
+FRONTEND_URL = "http://localhost:5173"  # Default for development
+SPA_URL = "http://localhost:5173"
+
+# Django-allauth specific settings
+ACCOUNT_EMAIL_VERIFICATION = "optional"
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
+ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
+
+# Add redirect URLs for Google OAuth 
+LOGIN_REDIRECT_URL = 'http://localhost:5173/auth/callback'
+ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default='http://localhost:5173/signin')
+
 # By Default swagger ui is available only to admin user(s). You can change permission classes to change that
 # See more configuration options at https://drf-spectacular.readthedocs.io/en/latest/settings.html#settings
 SPECTACULAR_SETTINGS = {
@@ -359,4 +390,50 @@ SPECTACULAR_SETTINGS = {
 FRONTEND_URL = "http://localhost:5173"  # Default for development
 LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/dashboard" 
 ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
-SPA_URL = "http://localhost:5173"
+
+# Add redirect URLs for Google OAuth # Redirect after successful login
+#LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default='http://localhost:5173/dashboard')
+LOGIN_REDIRECT_URL = 'http://localhost:5173/auth/callback'
+ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default='http://localhost:5173/signin')
+
+# Django-allauth specific settings
+ACCOUNT_EMAIL_VERIFICATION = "optional"
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
+ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
+
+
+# dj-rest-auth settings
+REST_USE_JWT = True
+JWT_AUTH_COOKIE = 'auth-token'
+JWT_AUTH_REFRESH_COOKIE = 'refresh-token'
+JWT_AUTH_SECURE = True  # Set to False during development if needed
+JWT_AUTH_SAMESITE = 'Lax'  # Consider 'None' for cross-site authentication
+
+# JWT settings
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+# settings.py
+REST_AUTH = {
+    'JWT_SERIALIZER': 'config.auth.CustomJWTSerializer',
+    'USER_DETAILS_SERIALIZER': 'bunk_logs.users.serializers.UserSerializer',
+}
+
+# Ensure redirect works properly with CSRF protection
+#CSRF_TRUSTED_ORIGINS = [
+#    'http://localhost:5173',
+#    'http://127.0.0.1:5173',
+#    'http://localhost:8000',
+#    'http://127.0.0.1:8000',
+#]
+
+

@@ -72,19 +72,30 @@ class DebugPermission(permissions.BasePermission):
     Use this temporarily to debug permission issues.
     """
     def has_permission(self, request, view):
-        logger.debug(f"DEBUG PERMISSION CHECK")
+        # Log detailed authentication information
+        import logging
+        logger = logging.getLogger('bunk_logs.api.permissions')
         
-        # Check if user is authenticated before accessing email
-        if request.user.is_authenticated:
-            logger.debug(f"User: {request.user.email}, authenticated: True")
-        else:
-            logger.debug(f"User: AnonymousUser, authenticated: False")
-            
+        logger.debug(f"User: {request.user}, authenticated: {request.user.is_authenticated}")
         logger.debug(f"View kwargs: {view.kwargs}")
-        logger.debug(f"View class: {view.__class__.__name__}")
-        logger.debug(f"Request path: {request.path}")
         
-        # Always allow access for debugging
+        # Log authentication headers
+        logger.debug(f"Authorization header: {request.headers.get('Authorization', 'Not provided')}")
+        logger.debug(f"Session cookie: {'Present' if request.COOKIES.get('sessionid') else 'Not present'}")
+        logger.debug(f"Request method: {request.method}")
+        logger.debug(f"Content type: {request.headers.get('Content-Type', 'Not provided')}")
+        
+        # Log all request headers for diagnostic purposes
+        logger.debug(f"All headers: {dict(request.headers)}")
+        
+        # Add helpful debug message about required authentication
+        if not request.user.is_authenticated:
+            logger.debug("AUTHENTICATION MISSING: This endpoint requires authentication.")
+            logger.debug("To authenticate, include one of the following:")
+            logger.debug("1. Token Authentication: Add header 'Authorization: Token YOUR_TOKEN_HERE'")
+            logger.debug("2. Session Authentication: Include a valid sessionid cookie")
+        
+        # Always allow for debugging purposes
         return True
 
 
