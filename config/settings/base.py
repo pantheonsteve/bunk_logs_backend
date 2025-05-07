@@ -18,6 +18,8 @@ if READ_DOT_ENV_FILE:
 
 # GENERAL
 # ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
+SECRET_KEY = env("DJANGO_SECRET_KEY")
 # https://docs.djangoproject.com/en/dev/ref/settings/#debug
 DEBUG = env.bool("DJANGO_DEBUG", False)
 # Local time zone. Choices are
@@ -154,6 +156,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
 # STATIC
@@ -284,24 +287,34 @@ REDIS_SSL = REDIS_URL.startswith("rediss://")
 # django-allauth
 # ------------------------------------------------------------------------------
 # Social authentication settings - very important!
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
 
 ACCOUNT_ALLOW_REGISTRATION = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_LOGIN_METHODS = {"email"}
 
 # Social account settings
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+        #'VERIFIED_EMAIL': True,
+    }
+}
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_EMAIL_REQUIRED = False
-SOCIALACCOUNT_LOGIN_ON_GET = True
-SOCIALACCOUNT_STORE_TOKENS = True
-SOCIALACCOUNT_ADAPTER = "bunk_logs.users.adapters.SocialAccountAdapter"
+SOCIALACCOUNT_ADAPTER = 'bunk_logs.users.adapters.SocialAccountAdapter'
 SOCIALACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSocialSignupForm"}
 
 
@@ -321,11 +334,11 @@ ACCOUNT_LOGOUT_REDIRECT_URL = 'http://localhost:5173/signin'
 # -------------------------------------------------------------------------------
 # django-rest-framework - https://www.django-rest-framework.org/api-guide/settings/
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.SessionAuthentication",
-        "rest_framework.authentication.TokenAuthentication",
-    ),
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",  # Keep for admin use
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
@@ -392,18 +405,18 @@ LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/dashboard"
 ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/signin"
 
 # Add redirect URLs for Google OAuth # Redirect after successful login
-#LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default='http://localhost:5173/dashboard')
-LOGIN_REDIRECT_URL = 'http://localhost:5173/auth/callback'
+LOGIN_REDIRECT_URL = env('LOGIN_REDIRECT_URL', default='http://localhost:5173/dashboard')
+#LOGIN_REDIRECT_URL = 'http://localhost:5173/auth/callback'
 ACCOUNT_LOGOUT_REDIRECT_URL = env('ACCOUNT_LOGOUT_REDIRECT_URL', default='http://localhost:5173/signin')
 
-# Django-allauth specific settings
-ACCOUNT_EMAIL_VERIFICATION = "optional"
-ACCOUNT_AUTHENTICATION_METHOD = "email"
+# Django AllAuth settings
+ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' in production
 ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-ACCOUNT_ADAPTER = "bunk_logs.users.adapters.AccountAdapter"
-ACCOUNT_FORMS = {"signup": "bunk_logs.users.forms.UserSignupForm"}
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_LOGOUT_ON_GET = True
 
 
 # dj-rest-auth settings
@@ -413,27 +426,35 @@ JWT_AUTH_REFRESH_COOKIE = 'refresh-token'
 JWT_AUTH_SECURE = True  # Set to False during development if needed
 JWT_AUTH_SAMESITE = 'Lax'  # Consider 'None' for cross-site authentication
 
-# JWT settings
+# JWT Settings
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
-# settings.py
+# dj-rest-auth settings
 REST_AUTH = {
-    'JWT_SERIALIZER': 'config.auth.CustomJWTSerializer',
+    'USE_JWT': True,
+    'JWT_AUTH_COOKIE': 'bunklogs-auth',
+    'JWT_AUTH_REFRESH_COOKIE': 'bunklogs-refresh',
+    'JWT_AUTH_SECURE': not DEBUG,  # True in production
+    'JWT_AUTH_HTTPONLY': True,
+    'JWT_AUTH_SAMESITE': 'Lax',
     'USER_DETAILS_SERIALIZER': 'bunk_logs.users.serializers.UserSerializer',
 }
 
-# Ensure redirect works properly with CSRF protection
-#CSRF_TRUSTED_ORIGINS = [
-#    'http://localhost:5173',
-#    'http://127.0.0.1:5173',
-#    'http://localhost:8000',
-#    'http://127.0.0.1:8000',
-#]
+INTERNAL_IPS = [
+    '127.0.0.1',
+]
 
 

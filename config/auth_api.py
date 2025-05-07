@@ -1,5 +1,3 @@
-# File: config/auth_api.py
-
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth import get_user_model

@@ -1,15 +1,12 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from bunks.models import Bunk
 
 User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
-    """
-    Serializer for User model.
-    
-    This serializer defines which fields are sent to the frontend when 
-    a user authenticates or when user data is requested.
-    """
+    bunks = serializers.SerializerMethodField()
+    units = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -21,35 +18,28 @@ class UserSerializer(serializers.ModelSerializer):
             "role", 
             "is_active",
             "is_staff", 
-            "is_superuser",
-            # Add other fields from your User model that you want to expose
+            "profile_complete",
+            "bunks",
+            "units",
         ]
-        read_only_fields = ["id", "is_active", "is_staff", "is_superuser"]
-
-class UserDetailsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'first_name', 'last_name']
-        read_only_fields = ['email']
-
-class UserCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer for creating User objects.
+        read_only_fields = ["id", "is_active", "is_staff"]
     
-    This serializer may be used during registration if not using 
-    the default allauth registration process.
-    """
+    def get_bunks(self, obj):
+        if obj.role == 'Counselor':
+            bunks = obj.assigned_bunks.filter(is_active=True)
+            return [{
+                'id': str(bunk.id),
+                'name': bunk.name,
+                'cabin': bunk.cabin.name if bunk.cabin else None,
+                'session': bunk.session.name if bunk.session else None,
+            } for bunk in bunks]
+        return []
     
-    class Meta:
-        model = User
-        fields = [
-            "email",
-            "password",
-            "first_name",
-            "last_name",
-            "role",
-        ]
-        extra_kwargs = {"password": {"write_only": True}}
-    
-    def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+    def get_units(self, obj):
+        if obj.role == 'Unit Head':
+            units = obj.managed_units.all()
+            return [{
+                'id': str(unit.id),
+                'name': unit.name,
+            } for unit in units]
+        return []
